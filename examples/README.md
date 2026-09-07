@@ -1,11 +1,13 @@
 # react-three-fiber-examples — examples
 
-A floating, distorted torus knot with orbit controls and image-based lighting.
+A floating, distorted torus knot with orbit controls and image-based lighting —
+in two forms: an idiomatic R3F component, and a dependency-free vanilla-Three.js
+version that runs by just opening it.
 
 | File | Description |
 | --- | --- |
-| [`FloatingKnot.jsx`](./FloatingKnot.jsx) | Idiomatic React Three Fiber component — a distorted torus knot lit by an environment, floating and orbitable. Needs the npm setup below. |
-| [`vanilla-fallback.html`](./vanilla-fallback.html) | Dependency-free plain Three.js r160 version of the same scene. **Runs by just opening it** — no build step. |
+| [`FloatingKnot.jsx`](./FloatingKnot.jsx) | Idiomatic React Three Fiber component — a distorted torus knot lit by an environment, floating and orbitable, with `<PerformanceMonitor>` + `<AdaptiveDpr>` quality scaling and reduced-motion handling. Needs the npm setup below. |
+| [`vanilla-fallback.html`](./vanilla-fallback.html) | Dependency-free plain Three.js r160 version of the same scene. **Runs by just opening it** — no build step. Adaptive DPR, capability fallback, and strict cleanup. |
 
 ## Why two files?
 
@@ -40,53 +42,20 @@ npm run dev
 ```
 
 These versions are mutually compatible: `@react-three/fiber@8` and
-`@react-three/drei@9` both target `three` r160. The component caps DPR at 2 and
-disables auto-rotation when the viewer prefers reduced motion.
+`@react-three/drei@9` both target `three` r160.
+
+## Production notes
+
+- **`FloatingKnot.jsx`** scales quality at runtime: `<PerformanceMonitor>` raises
+  or lowers a DPR ceiling (kept within `[1, 2]`) from the measured frame rate,
+  while `<AdaptiveDpr>` and `<AdaptiveEvents>` drop resolution and raycast cost
+  during interaction and restore them when idle. Reduced-motion viewers get a
+  static scene on a `frameloop="demand"` loop (renders only when the camera
+  moves) with baked shadows.
+- **`vanilla-fallback.html`** loads three r160 **only** via a jsdelivr importmap
+  (never the UMD build), checks WebGL support with a styled fallback, caps DPR at
+  2 with rolling-FPS adaptive scaling, pauses when hidden or offscreen, and on
+  `pagehide` (or via `window.__floatingKnotDispose`) disposes geometry, material,
+  environment, controls and renderer and removes every listener.
 
 Part of AETumi's React Three Fiber examples hub: https://aetumi.app/r3f
-
----
-
-## Example backlog / roadmap
-
-# React Three Fiber Example Backlog
-
-## Planned examples
-
-### R3F hero scene
-
-A small responsive hero with semantic HTML content outside the canvas and an explicit loading state.
-
-### Product viewer
-
-Use shared application state for variants while keeping per-frame animation state inside the scene.
-
-### Suspense + model loading
-
-Document what should happen before, during and after GLTF loading, including failure behavior.
-
-### Scroll-linked camera
-
-Connect normalized scroll progress to scene state without causing React re-render churn.
-
-### Shared WebGL effect component
-
-Compare a direct Three.js implementation with an equivalent React Three Fiber composition.
-
-## Quality bar
-
-Every example should document:
-
-- React state boundary
-- frame state boundary
-- resource reuse
-- cleanup
-- responsive behavior
-- reduced-motion fallback
-- mobile performance notes
-
-## AETumi links
-
-- https://aetumi.app/react-three-fiber/
-- https://aetumi.app/threejs/
-- https://aetumi.app/docs/
