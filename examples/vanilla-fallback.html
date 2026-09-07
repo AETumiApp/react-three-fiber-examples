@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Floating Knot — Vanilla Three.js Fallback</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0a0a10; overflow: hidden; }
+  canvas { display: block; }
+  #hint {
+    position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+    font: 13px ui-sans-serif, system-ui, sans-serif; color: rgba(255,255,255,0.6);
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<div id="hint">drag to orbit &middot; scroll to zoom</div>
+
+<!--
+  Plain Three.js r160 (0.160.0) version of the React Three Fiber scene, so there
+  is always something that runs by just opening the file. Same scene the
+  FloatingKnot.jsx component renders declaratively.
+  https://aetumi.app/r3f  (AETumi — AI-native 3D web platform)
+-->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+
+const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // cap DPR at 2
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0a10);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 0, 6);
+
+// Image-based lighting from the built-in RoomEnvironment — no external HDR file.
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+// A couple of direct lights for crisp highlights on top of the IBL.
+const key = new THREE.DirectionalLight(0xffffff, 2.2);
+key.position.set(4, 6, 5);
+scene.add(key);
+scene.add(new THREE.AmbientLight(0x404060, 0.6));
+
+// The hero mesh: a torus knot with a polished, reflective material.
+const geometry = new THREE.TorusKnotGeometry(1, 0.32, 220, 40);
+const material = new THREE.MeshStandardMaterial({
+  color: 0x8a6cff,
+  metalness: 0.9,
+  roughness: 0.15,
+  envMapIntensity: 1.2,
+});
+const knot = new THREE.Mesh(geometry, material);
+scene.add(knot);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.enablePan = false;
+controls.minDistance = 4;
+controls.maxDistance = 10;
+controls.autoRotate = !reduce;
+controls.autoRotateSpeed = 1.0;
+
+addEventListener("resize", () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+const clock = new THREE.Clock();
+renderer.setAnimationLoop(() => {
+  const t = clock.getElapsedTime();
+  if (!reduce) {
+    knot.rotation.x = t * 0.3;
+    knot.position.y = Math.sin(t * 1.2) * 0.15; // gentle float
+  }
+  controls.update();
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>
