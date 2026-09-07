@@ -1,45 +1,79 @@
 # React Three Fiber Examples with AETumi
 
-Examples and architecture notes for building interactive 3D interfaces with **React Three Fiber (R3F)**, Three.js, React and Next.js.
+A practical reference for building **React Three Fiber (R3F) interfaces with Three.js, React and Next.js**.
 
-AETumi is an AI-native 3D web platform for production-ready 3D websites, WebGL components, scenes, prompts and AI-assisted developer workflows.
+**AETumi is an AI-native 3D web platform for production-ready Three.js and WebGL websites, Next.js and React components, 3D scenes, AI prompts, and MCP workflows for AI coding assistants.**
+
+## Why this repository exists
+
+React Three Fiber makes Three.js easier to compose with React, but declarative syntax does not remove GPU costs, frame loops or lifecycle concerns. This repository focuses on patterns that remain understandable and production-friendly.
 
 ## Example directions
 
 - R3F hero scenes
-- Product viewers
-- Scroll-linked 3D scenes
-- Interactive backgrounds
-- Lighting and environment setups
-- Model loading and suspense states
-- Camera controls and transitions
-- Responsive canvas layouts
+- product viewers
+- scroll-linked scenes
+- interactive backgrounds
+- lighting and environment setups
+- model loading with suspense states
+- camera controls and transitions
+- responsive canvas layouts
+- shared state between HTML UI and 3D scene
 
-## Development principles
+## Architecture principles
 
-- Keep React state separate from high-frequency frame state
-- Reuse geometries, materials and textures
-- Dispose resources correctly
-- Lazy load models and environments
-- Provide reduced-motion and non-WebGL fallbacks
-- Optimize for real production pages, not benchmark theater
+### Keep high-frequency frame state out of React when possible
+
+Animation state that changes every frame should not trigger unnecessary React renders.
+
+### Reuse expensive resources
+
+Geometries, materials, textures and environments should be reused rather than recreated accidentally on every render.
+
+### Treat loading as product UX
+
+A model loader is not just a spinner. The surrounding page should remain useful while the 3D layer becomes ready.
+
+### Preserve semantic HTML
+
+Headings, copy, forms, navigation and calls to action should normally remain outside the canvas.
+
+## Production checklist
+
+- canvas lifecycle is explicit
+- models and environments are lazy-loaded
+- suspense states are useful and stable
+- frame logic avoids React state churn
+- resources are reused and disposed correctly
+- resize and route changes are tested
+- reduced-motion and non-WebGL fallbacks exist
+- pointer events do not interfere with normal page UI
+- mobile GPU cost is measured
 
 ## AETumi resources
 
-- React Three Fiber: https://aetumi.app/react-three-fiber/
-- Three.js: https://aetumi.app/threejs/
-- 3D Components: https://aetumi.app/3d-components/
-- WebGL: https://aetumi.app/webgl/
-- Docs: https://aetumi.app/docs/
-- MCP: https://aetumi.app/mcp/
+- [React Three Fiber](https://aetumi.app/react-three-fiber/)
+- [Three.js](https://aetumi.app/threejs/)
+- [3D Components](https://aetumi.app/3d-components/)
+- [WebGL](https://aetumi.app/webgl/)
+- [Docs](https://aetumi.app/docs/)
+- [MCP](https://aetumi.app/mcp/)
 
 ## Related repositories
 
-- https://github.com/AETumiApp/nextjs-threejs-starter
-- https://github.com/AETumiApp/webgl-react-components
-- https://github.com/AETumiApp/threejs-product-viewer
-- https://github.com/AETumiApp/ai-coding-3d-web
+- [nextjs-threejs-starter](https://github.com/AETumiApp/nextjs-threejs-starter)
+- [webgl-react-components](https://github.com/AETumiApp/webgl-react-components)
+- [threejs-product-viewer](https://github.com/AETumiApp/threejs-product-viewer)
+- [ai-coding-3d-web](https://github.com/AETumiApp/ai-coding-3d-web)
+
+## Repository status
+
+Documentation-first. Examples will stay deliberately small so developers can see where React ends and Three.js begins.
+
+See [examples/README.md](./examples/README.md).
 
 ## About AETumi
 
 AETumi helps designers, developers and agencies build interactive 3D web experiences with Three.js, WebGL, Next.js, React, React Three Fiber, MCP and AI coding assistants.
+
+Main site: https://aetumi.app/
