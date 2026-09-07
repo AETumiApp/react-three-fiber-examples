@@ -12,6 +12,14 @@
     font: 13px ui-sans-serif, system-ui, sans-serif; color: rgba(255,255,255,0.6);
     pointer-events: none;
   }
+  .fallback {
+    position: fixed; inset: 0; display: grid; place-content: center;
+    text-align: center; padding: 24px;
+    color: #cfd2e0; font: 15px/1.6 ui-sans-serif, system-ui, sans-serif;
+    background: radial-gradient(120% 120% at 40% 25%, #241a4a 0%, #120c26 45%, #0a0a10 100%);
+  }
+  .fallback strong { display: block; margin-bottom: .4em; color: #fff; font-size: 1.05rem; }
+  .fallback a { color: #b7a6ff; }
 </style>
 </head>
 <body>
@@ -21,6 +29,13 @@
   Plain Three.js r160 (0.160.0) version of the React Three Fiber scene, so there
   is always something that runs by just opening the file. Same scene the
   FloatingKnot.jsx component renders declaratively.
+
+  Production hardening: capability check with a styled fallback, adaptive DPR
+  (rolling FPS, capped at 2), render pauses when hidden/offscreen, and strict
+  teardown that disposes geometry, material, environment, renderer and controls
+  and removes every listener.
+
+  Three.js r160 is loaded ONLY via a jsdelivr importmap — never the UMD build.
   https://aetumi.app/r3f  (AETumi — AI-native 3D web platform)
 -->
 <script type="importmap">
@@ -37,10 +52,31 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 
-const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+// ---- Capability check: styled fallback if WebGL is unavailable. ------------
+function webglOK() {
+  try {
+    const c = document.createElement("canvas");
+    return !!(window.WebGLRenderingContext &&
+      (c.getContext("webgl") || c.getContext("experimental-webgl")));
+  } catch (e) { return false; }
+}
+if (!webglOK()) {
+  const hint = document.getElementById("hint");
+  if (hint) hint.remove();
+  const el = document.createElement("div");
+  el.className = "fallback";
+  el.innerHTML = "<div><strong>WebGL not supported</strong>" +
+    "This scene needs a WebGL-capable browser. " +
+    'Explore more at <a href="https://aetumi.app/r3f">aetumi.app/r3f</a>.</div>';
+  document.body.appendChild(el);
+  throw new Error("WebGL unavailable"); // stop the module cleanly
+}
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // cap DPR at 2
+const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const DPR_CAP = 2;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, DPR_CAP));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.1;
@@ -54,21 +90,20 @@ camera.position.set(0, 0, 6);
 
 // Image-based lighting from the built-in RoomEnvironment — no external HDR file.
 const pmrem = new THREE.PMREMGenerator(renderer);
-scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+const envRT = pmrem.fromScene(new RoomEnvironment(), 0.04);
+scene.environment = envRT.texture;
 
 // A couple of direct lights for crisp highlights on top of the IBL.
 const key = new THREE.DirectionalLight(0xffffff, 2.2);
 key.position.set(4, 6, 5);
 scene.add(key);
-scene.add(new THREE.AmbientLight(0x404060, 0.6));
+const ambient = new THREE.AmbientLight(0x404060, 0.6);
+scene.add(ambient);
 
 // The hero mesh: a torus knot with a polished, reflective material.
 const geometry = new THREE.TorusKnotGeometry(1, 0.32, 220, 40);
 const material = new THREE.MeshStandardMaterial({
-  color: 0x8a6cff,
-  metalness: 0.9,
-  roughness: 0.15,
-  envMapIntensity: 1.2,
+  color: 0x8a6cff, metalness: 0.9, roughness: 0.15, envMapIntensity: 1.2,
 });
 const knot = new THREE.Mesh(geometry, material);
 scene.add(knot);
@@ -82,22 +117,79 @@ controls.maxDistance = 10;
 controls.autoRotate = !reduce;
 controls.autoRotateSpeed = 1.0;
 
-addEventListener("resize", () => {
+function onResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-});
+}
+window.addEventListener("resize", onResize);
 
-const clock = new THREE.Clock();
-renderer.setAnimationLoop(() => {
+// ---- Adaptive DPR: rolling FPS lowers pixel ratio under load, recovers up. --
+let dprLevel = Math.min(window.devicePixelRatio, DPR_CAP);
+let frames = 0, fpsClock = 0, lastAdapt = 0;
+function adapt(now) {
+  if (!fpsClock) { fpsClock = now; return; }
+  frames++;
+  const span = now - fpsClock;
+  if (span >= 500) {
+    const fps = (frames * 1000) / span;
+    frames = 0; fpsClock = now;
+    if (now - lastAdapt > 900) {
+      if (fps < 50 && dprLevel > 1) { dprLevel = Math.max(1, dprLevel - 0.5); renderer.setPixelRatio(dprLevel); lastAdapt = now; }
+      else if (fps > 58 && dprLevel < Math.min(window.devicePixelRatio, DPR_CAP)) { dprLevel = Math.min(Math.min(window.devicePixelRatio, DPR_CAP), dprLevel + 0.5); renderer.setPixelRatio(dprLevel); lastAdapt = now; }
+    }
+  }
+}
+
+// ---- Visibility gating: pause when hidden or scrolled offscreen. ------------
+let onScreen = true, pageVisible = !document.hidden, running = false;
+const clock = new THREE.Clock(false);
+
+function tick() {
+  const now = performance.now();
+  adapt(now);
   const t = clock.getElapsedTime();
   if (!reduce) {
     knot.rotation.x = t * 0.3;
+    knot.rotation.y = t * 0.15;
     knot.position.y = Math.sin(t * 1.2) * 0.15; // gentle float
   }
   controls.update();
   renderer.render(scene, camera);
-});
+}
+
+function sync() {
+  const want = onScreen && pageVisible;
+  if (want && !running) { running = true; fpsClock = 0; frames = 0; clock.start(); renderer.setAnimationLoop(tick); }
+  else if (!want && running) { running = false; clock.stop(); renderer.setAnimationLoop(null); }
+}
+
+const io = ("IntersectionObserver" in window)
+  ? new IntersectionObserver((es) => { onScreen = es[0].isIntersecting; sync(); }, { threshold: 0.01 })
+  : null;
+if (io) io.observe(renderer.domElement);
+function onVis() { pageVisible = !document.hidden; sync(); }
+document.addEventListener("visibilitychange", onVis);
+
+// ---- Strict teardown -------------------------------------------------------
+function dispose() {
+  running = false;
+  renderer.setAnimationLoop(null);
+  window.removeEventListener("resize", onResize);
+  document.removeEventListener("visibilitychange", onVis);
+  if (io) io.disconnect();
+  controls.dispose();
+  geometry.dispose();
+  material.dispose();
+  envRT.dispose();
+  pmrem.dispose();
+  renderer.dispose();
+  if (renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
+}
+window.addEventListener("pagehide", dispose, { once: true });
+window.__floatingKnotDispose = dispose; // exposed for SPA/hot-reload teardown
+
+sync();
 </script>
 </body>
 </html>
