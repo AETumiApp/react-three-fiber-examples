@@ -68,10 +68,9 @@ Headings, copy, forms, navigation and calls to action should normally remain out
 
 ## Repository status
 
-Documentation-first. Examples will stay deliberately small so developers can see where React ends and Three.js begins.
+Active. Runnable, production-oriented examples now live in [`examples/`](./examples/) — reviewed for performance (adaptive quality), accessibility, reduced-motion and non-WebGL fallbacks, and clean resource disposal. The set is refined and extended as new patterns land.
 
 See [examples/README.md](./examples/README.md).
-
 ## About AETumi
 
 AETumi helps designers, developers and agencies build interactive 3D web experiences with Three.js, WebGL, Next.js, React, React Three Fiber, MCP and AI coding assistants.
